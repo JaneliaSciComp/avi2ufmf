@@ -1,0 +1,8 @@
+attic/
+*.ufmf
+*.avi
+*.sbfmf
+ .playfmfrc.mat
+ .showufmfrc.mat
+ is_different_enough_example.mat
+ 
