@@ -106,7 +106,7 @@ end
 
 % make an image with x, y coords
 %[x_image, y_image] = meshgrid(1:nc, 1:nr) ;
-[x_image_transposed, y_image_transposed] = meshgrid(1:nr, 1:nc) ;
+%[x_image_transposed, y_image_transposed] = meshgrid(1:nr, 1:nc) ;
   % image of x/y coord in *transposed* frame
 
 % set one roi for whole image of no ROIs specified
@@ -127,8 +127,10 @@ output_frame_count = endframe - startframe + 1;
 
 % write header
 % already taken the transpose
-is_fixed_size = true ;
-indexlocloc = ufmf_write_header(fid, 1, 1, 'mono8', is_fixed_size) ;
+max_box_width = nc ;
+max_box_height = nr ;
+is_fixed_size = false ;
+indexlocloc = ufmf_write_header(fid, max_box_width, max_box_height, 'mono8', is_fixed_size) ;
   % indexlocloc is where the index location will be stored in the file
 
 % store the locations of the frames in the file
@@ -137,10 +139,6 @@ timestamp_from_output_frame_index  = nan(1, output_frame_count) ;
 
 % make stamps based on frame rate
 timestamp = (startframe-1)*dt ;
-
-if verbose >= 1,
-  estsize = 0 ;
-end
 
 % Each block gets one keyframe image
 block_count = ceil(output_frame_count/blocknframes) ;
@@ -159,13 +157,8 @@ for block_index = 1 : block_count ,
 
   % compute bg model for block
   if verbose >= 1,
-    fprintf('\nBackground modeling, subtraction parameters:\n');
-    fprintf('Algorithm: %s\n','median');
-    fprintf('%d frames sampled between frames %d and %d\n', bgnframes, block_input_first_frame_index, block_input_last_frame_index) ;
-    fprintf('Threshold = %f\n',bgthresh);
-  end
-  if verbose >= 1,
     fprintf('Computing background model for block %d...\n', block_index);
+    fprintf('%d frames sampled between frames %d and %d\n', bgnframes, block_input_first_frame_index, block_input_last_frame_index) ;
   end
   bg_image = ...
     compute_bg_med_simple(...
@@ -206,43 +199,30 @@ for block_index = 1 : block_count ,
   for block_frame_index = 1 : block_frame_count ,
     % read in the current frame
     input_frame_index = block_input_offset + block_frame_index ;
-    raw_frame = readframe(input_frame_index);
+    frame = readframe(input_frame_index);
 
     % we'll need this for indexing into framesloc
     output_frame_index = block_output_offset + block_frame_index ;
-
-    if verbose >= 1 && mod(input_frame_index,100) == 0,
-      fprintf('Compressing frame %d of %d\n',output_frame_index,output_frame_count);
-      if output_frame_index > 1,
-        fprintf('Average number of points stored = %d\n',...
-          round(estsize/(output_frame_index-1)));
-      end
-    end
 
     %
     % write the current frame
     %
 
-    % convert to double grayscale, transpose
-    transposed_frame = raw_frame' ;
+%     % convert to double grayscale, transpose
+%     transposed_frame = frame' ;
 
     % subtract and threshold
     switch diffmode,
       case 'dark-on-light-background',
-        diff_image = imsubtract(bg_image_transposed, transposed_frame) ;
-        is_different_enough = ( diff_image >= bgthresh ) ;
-        idx = find(is_different_enough) ;
+        diff_image = imsubtract(bg_image, frame) ;
       case 'light flies on a dark backgroud',
-        diff_image = imsubtract(transposed_frame, bg_image_transposed) ;
-        is_different_enough = ( diff_image >= bgthresh ) ;
-        idx = find(is_different_enough) ;
+        diff_image = imsubtract(frame, bg_image) ;
       otherwise,
-        diff_image = imabsdiff(transposed_frame, bg_image_transposed) ;
-        is_different_enough = ( diff_image >= bgthresh ) ;
-        idx = find(is_different_enough) ;
+        diff_image = imabsdiff(frame, bg_image) ;
     end
+    is_foreground = ( diff_image >= bgthresh ) ;
 
-    % Plot all the pixels that will get saved to the frame
+    % Plot all the pixels that are different enough to be considered foreground
     if verbose >= 3 ,
       f = findall(groot(), 'Type', 'figure', 'Tag', 'is_different_enough_figure') ;
       if isempty(f) ,
@@ -253,21 +233,49 @@ for block_index = 1 : block_count ,
         ax = axes('Parent', f, 'Tag', 'is_different_enough_axes', 'Title', 'is_different_enough') ;
       end
       delete(ax.Children) ;
-      imshow(is_different_enough', 'Parent', ax) ;  % Want to show normal, not transposed
+      imshow(is_foreground', 'Parent', ax) ;  % Want to show normal, not transposed
       drawnow('nocallbacks') ;
     end
 
-    if verbose >= 1,
-      estsize = estsize + length(idx);
+    % Compute a set of boxes that cover all the foreground pixels
+    limits_from_box_index = find_boxes_from_image(is_foreground) ;
+      % limits_from_box_index is 3d.  Each page is a box, and each page looks like
+      %   [ x_lo x_hi ;
+      %     y_lo y_hi ]
+      % x_lo and x_hi are the limits of the box in x, similar for y. The limits are
+      % inclusive (both _lo and _hi are part of the box), and use Matlab-style
+      % 1-based indexing.
+
+    % Convert the boxes and pixel values to the format ufmf_write_frame()
+    % requires.
+    box_count = size(limits_from_box_index, 3) ;
+    x0 = zeros(box_count, 1) ;
+    y0 = zeros(box_count, 1) ;
+    w = zeros(box_count, 1) ;
+    h = zeros(box_count, 1) ;
+    val = cell(box_count, 1) ;
+    for box_index = 1 : box_count ,
+      limits = limits_from_box_index(:,:,box_index) ;
+      x0(box_index) = limits(1,1) - 1 ;  % -1 converts from 1-based indexing to 0-based
+      y0(box_index) = limits(2,1) - 1 ;
+      w(box_index) = limits(1,2) - limits(1,1) + 1 ;  % +1 b/c limits are inclusive on both ends
+      h(box_index) = limits(2,2) - limits(2,1) + 1 ;
+      box_image = frame(limits(2,1):limits(2,2), limits(1,1):limits(1,2)) ;
+      box_image_transposed = box_image' ;      
+      val{box_index} = box_image_transposed(:) ;  % col vector
     end
 
-    % store different pixels
-    value_from_pixel_index = transposed_frame(idx) ;
-    x_from_pixel_index = x_image_transposed(idx)-1 ;  % integral x coord in transposed image for each pixel
-    y_from_pixel_index = y_image_transposed(idx)-1 ;  % integral y coord in transposed image for each pixel
-    %frame_loc_from_output_frame_index(output_frame_index) = ufmf_write_frame(fp,timestamp,idx,transposed_frame(idx));
+    % Write out the frame
     loc_from_output_frame_index(output_frame_index) = ...
-      ufmf_write_frame_fixed_size(fid, timestamp, y_from_pixel_index, x_from_pixel_index, value_from_pixel_index) ;
+      ufmf_write_frame(fid, timestamp, x0, y0, w, h, val) ;
+
+%     % This is the old code from where each box was a single pixel    
+%     % store different pixels
+%     value_from_pixel_index = transposed_frame(idx) ;
+%     x_from_pixel_index = x_image_transposed(idx)-1 ;  % integral x coord in transposed image for each pixel
+%     y_from_pixel_index = y_image_transposed(idx)-1 ;  % integral y coord in transposed image for each pixel
+%     loc_from_output_frame_index(output_frame_index) = ...
+%       ufmf_write_frame_fixed_size(fid, timestamp, y_from_pixel_index, x_from_pixel_index, value_from_pixel_index) ;
 
     % Record the frame timestamp
     timestamp_from_output_frame_index(output_frame_index) = timestamp ;

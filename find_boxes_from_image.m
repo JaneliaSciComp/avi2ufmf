@@ -6,20 +6,20 @@ function limits_from_box_index = find_boxes_from_image(is_fg)
   [ny, nx] = size(is_fg) ;
   [ix_image, iy_image] = meshgrid(1:nx, 1:ny) ;
   is_fg_and_uncovered = is_fg ;
-  hot_pixel_count = sum(is_fg, 'all') ;
   box_count = 0 ;
   limits_from_box_index = zeros(2,2,1000) ;  % pre-allocate enough for more use-cases
-  for k = 1 : hot_pixel_count ,  % for loop to avoid any chance of an infinite loop
-    i_seed = find(is_fg_and_uncovered, 1) ;
-    if isempty(i_seed) ,
-      break
+  i_seed_from_possible_seed_index = find(is_fg_and_uncovered) ;
+  hot_pixel_count = length(i_seed_from_possible_seed_index) ;
+  for k = 1 : hot_pixel_count ,  
+    i_seed = i_seed_from_possible_seed_index(k) ;
+    if is_fg_and_uncovered(i_seed) ,
+      ix_seed = ix_image(i_seed) ;
+      iy_seed = iy_image(i_seed) ;
+      box = find_box_from_seed(is_fg, ix_seed, iy_seed) ;
+      box_count = box_count + 1 ;
+      limits_from_box_index(:,:,box_count) = box ;
+      is_fg_and_uncovered(box(2,1):box(2,2), box(1,1):box(1,2)) = false ;  % clear the pixels covered by the box
     end
-    ix_seed = ix_image(i_seed) ;
-    iy_seed = iy_image(i_seed) ;
-    box = find_box_from_seed(is_fg, ix_seed, iy_seed) ;
-    limits_from_box_index(:,:,k) = box ;
-    box_count = k ;
-    is_fg_and_uncovered = clear_box(is_fg_and_uncovered, box) ;
   end
   if any(is_fg_and_uncovered, 'all') ,
     error('Internal error: Find_boxes_from_image left some pixels uncovered') ;
