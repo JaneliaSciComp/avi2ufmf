@@ -84,7 +84,7 @@ endframe = min(endframe_requested,input_video_frame_count);
 readframe = @(frame_index)(vr.read(frame_index)) ;
 headerinfo = get(vr);
 headerinfo.type = 'avi';
-fps = headerinfo.FrameRate;
+fps = headerinfo.FrameRate ;
 dt = 1/fps ;
 
 % read in the first frame to get the size
@@ -135,16 +135,17 @@ indexlocloc = ufmf_write_header(fid, max_box_width, max_box_height, 'mono8', is_
 
 % store the locations of the frames in the file
 loc_from_output_frame_index = zeros(1, output_frame_count, 'int64') ;
-timestamp_from_output_frame_index  = nan(1, output_frame_count) ;
-
-% make stamps based on frame rate
-timestamp = (startframe-1)*dt ;
+timestamp0 = (startframe-1)*dt ;
+timestamp_from_output_frame_index = timestamp0 + dt*(0:(output_frame_count-1)) ;
 
 % Each block gets one keyframe image
 block_count = ceil(output_frame_count/blocknframes) ;
 bgnframes = min(bgnframes_requested, blocknframes) ;
 keyframe_loc_from_block_index = zeros(1, block_count, 'int64') ;
-timestamp_from_block_index = nan(1, block_count) ;
+first_output_frame_index_from_block_index = blocknframes*(0:(block_count-1)) + 1 ;
+timestamp_from_block_index = timestamp_from_output_frame_index(first_output_frame_index_from_block_index) ;
+  % We want *precise* equality between the timestamp of the block and the
+  % timestamp of the first frame in the block
 for block_index = 1 : block_count ,
   %
   block_input_offset = startframe - 1 + (block_index-1)*blocknframes ;
@@ -195,10 +196,10 @@ for block_index = 1 : block_count ,
   % Write the keyframe to the file
   % ufmf_write_keyframe() expects images to be serialized Python-style, i.e. row-major
   % order.  So we transpose the image to make it happy.
+  block_timestamp = timestamp_from_block_index(block_index) ;
   bg_image_transposed = bg_image' ;
-  keyframe_loc = ufmf_write_keyframe(fid, timestamp, bg_image_transposed, 'mean') ;
+  keyframe_loc = ufmf_write_keyframe(fid, block_timestamp, bg_image_transposed, 'mean') ;
   keyframe_loc_from_block_index(block_index) = keyframe_loc ;
-  timestamp_from_block_index(block_index) = timestamp ;
 
   if verbose >= 1,
     fprintf('Encoding frames for block %d (frames %d-%d)...\n', block_index, block_input_first_frame_index, block_input_last_frame_index) ;
@@ -213,6 +214,10 @@ for block_index = 1 : block_count ,
 
     % we'll need this for indexing into framesloc
     output_frame_index = block_output_offset + block_frame_index ;
+    frame_timestamp = timestamp_from_output_frame_index(output_frame_index) ;
+    if block_frame_index == 1 ,
+      assert(frame_timestamp==block_timestamp) ;
+    end
 
     %
     % write the current frame
@@ -297,7 +302,7 @@ for block_index = 1 : block_count ,
 
     % Write out the frame
     loc_from_output_frame_index(output_frame_index) = ...
-      ufmf_write_frame(fid, timestamp, x0, y0, w, h, val) ;
+      ufmf_write_frame(fid, frame_timestamp, x0, y0, w, h, val) ;
 
 %     % This is the old code from where each box was a single pixel    
 %     % store different pixels
@@ -307,14 +312,8 @@ for block_index = 1 : block_count ,
 %     loc_from_output_frame_index(output_frame_index) = ...
 %       ufmf_write_frame_fixed_size(fid, timestamp, y_from_pixel_index, x_from_pixel_index, value_from_pixel_index) ;
 
-    % Record the frame timestamp
-    timestamp_from_output_frame_index(output_frame_index) = timestamp ;
-
     % Record the box count
     box_count_from_block_frame_index(block_frame_index) = box_count ;
-
-    % increment the stamp
-    timestamp = timestamp + dt ;
   end
 
   if verbose >= 1,

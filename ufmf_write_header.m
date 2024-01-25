@@ -1,4 +1,4 @@
-function [indexlocpr] = ufmf_write_header(fp,boxw,boxh,coding,is_fixed_size)
+function indexlocpr = ufmf_write_header(fp,boxw,boxh,coding,is_fixed_size)
 
 version = 4;
 if nargin<5 || isempty(is_fixed_size) ,
