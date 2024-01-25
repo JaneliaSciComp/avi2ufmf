@@ -25,9 +25,11 @@ This will create an output file named `foo.ufmf` in the current
 folder.  In my limited experiments, compression ratios of about 40x are
 typical relative to uncompressed .avi.
 
-Note that `avi2ufmf()` only works on 8-bit grayscale videos.
+Note that `avi2ufmf()` only works on 8-bit grayscale videos.  And it's
+only been testing in Ubuntu.  But it's pure Matlab code, so should
+work on any OS where Matlab is supported.  
 
-To get a good results, you will probably have to play around with some
+To get good results, you will probably have to play around with some
 of the parameters to `avi2ufmf`.  A call to `avi2ufmf()` that
 explicitly sets all of the optional parameters looks like this:
 ```
@@ -77,7 +79,7 @@ background, and means that a frame pixel that is darker than the
 keyframe pixel will not be encoded.  The value `'other'` means that
 any large deviation, whether brighter or darker, will be encoded.
 
-`blocknfrmes` specifies how many frames are between any two keyframes.
+`blocknframes` specifies how many frames are between any two keyframes.
 E.g. a value of 200 means a keyframe is recorded every 200 frames.
 All the frames that share a keyframe are called a "block".
 
@@ -98,12 +100,18 @@ always encoded.  Pixels with values from 93 to 107 will be considered
 foreground pixel and end up in the same box that includes the nearby
 foreground pixels.
 
-This code was developed with funding from the (Aso
-Lab)[https://www.janelia.org/lab/aso-lab].  But a lot of the code is
-taken from [Branson Lab](https://www.janelia.org/lab/branson-lab) code
-found in the [FlyDiscoAnalysis
+We include the `showufmf()` function written by [Kristen
+Branson](https://www.janelia.org/people/kristin-branson) for
+inspecting the generated .ufmf files.
+
+This code is all based on code and technologies developed by the
+[Branson Lab](https://www.janelia.org/lab/branson-lab), and borrows a
+lot of source code from the [FlyDiscoAnalysis
 repo](https://github.com/kristinbranson/FlyDiscoAnalysis/) and/or the
 [JAABA repo](https://github.com/kristinbranson/JAABA).
+
+This code was developed with funding from the (Aso
+Lab)[https://www.janelia.org/lab/aso-lab].
 
 Adam L. Taylor\
 2024-01-25
