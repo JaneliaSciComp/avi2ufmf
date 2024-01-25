@@ -98,9 +98,10 @@ always encoded.  Pixels with values from 93 to 107 will be considered
 foreground pixel and end up in the same box that includes the nearby
 foreground pixels.
 
-A good chunk of the code here is taken from [Branson
-Lab](https://www.janelia.org/lab/branson-lab) code found in the
-[FlyDiscoAnalysis
+This code was developed with funding from the (Aso
+Lab)[https://www.janelia.org/lab/aso-lab].  But a lot of the code is
+taken from [Branson Lab](https://www.janelia.org/lab/branson-lab) code
+found in the [FlyDiscoAnalysis
 repo](https://github.com/kristinbranson/FlyDiscoAnalysis/) and/or the
 [JAABA repo](https://github.com/kristinbranson/JAABA).
 
