@@ -97,6 +97,6 @@ always encoded.  Pixels with values from 93 to 107 will be considered
 foreground pixel and end up in the same box that includes the nearby
 foreground pixels.
 
-Adam L. Taylor
+Adam L. Taylor\
 2024-01-25
 
