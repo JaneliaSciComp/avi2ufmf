@@ -90,14 +90,14 @@ dt = 1/fps ;
 % read in the first frame to get the size
 frame = readframe(startframe);
 assert(ismatrix(frame)) ;
-nr = size(frame,1);
-nc = size(frame,2);
+ny = size(frame,1);
+nx = size(frame,2);
 ncolors = size(frame,3);
 
 if verbose >= 1,
   fprintf('AVI File Info:\n');
   fprintf('Name = %s\n',aviname);
-  fprintf('Frame size = %d rows x %d columns x %d colors\n',nr,nc,ncolors);
+  fprintf('Frame size = %d rows x %d columns x %d colors\n',ny,nx,ncolors);
   fprintf('Number of frames = %d\n',input_video_frame_count);
   fprintf('Frame rate = %d\n',fps);
   fprintf('VideoFormat = %s\n',headerinfo.VideoFormat);
@@ -127,8 +127,8 @@ output_frame_count = endframe - startframe + 1;
 
 % write header
 % already taken the transpose
-max_box_width = nc ;
-max_box_height = nr ;
+max_box_width = nx ;
+max_box_height = ny ;
 is_fixed_size = false ;
 indexlocloc = ufmf_write_header(fid, max_box_width, max_box_height, 'mono8', is_fixed_size) ;
   % indexlocloc is where the index location will be stored in the file
@@ -176,13 +176,18 @@ for block_index = 1 : block_count ,
     f = findall(groot(), 'Type', 'figure', 'Tag', 'bg_image_figure') ;
     if isempty(f) ,
       f = figure('Tag', 'bg_image_figure', 'Color', 'white') ;
+      set_figure_size_bang(f, [13 12]) ;
     end
     ax = findall(f, 'Type', 'axes', 'Tag', 'bg_image_axes') ;
     if isempty(ax) ,
-      ax = axes('Parent', f, 'Tag', 'bg_image_axes', 'Title', 'bg_image') ;
+      ax = axes('Parent', f, 'Tag', 'bg_image_axes', 'Title', 'bg_image', ...
+                'YDir', 'reverse', 'DataAspectRatioMode', 'manual', 'CLim', [0 255], 'Colormap', gray(256)) ;
     end
     delete(ax.Children) ;
-    imshow(bg_image, 'Parent', ax) ;
+    image(ax, 'CData', bg_image, 'CDataMapping', 'direct') ;
+    axis(ax, 'equal') ;
+    axis(ax, 'tight') ;
+    title(ax, 'bg_image', 'Interpreter', 'none') ;
     drawnow('nocallbacks') ;
   end
 
@@ -195,7 +200,12 @@ for block_index = 1 : block_count ,
   keyframe_loc_from_block_index(block_index) = keyframe_loc ;
   timestamp_from_block_index(block_index) = timestamp ;
 
+  if verbose >= 1,
+    fprintf('Encoding frames for block %d (frames %d-%d)...\n', block_index, block_input_first_frame_index, block_input_last_frame_index) ;
+  end
+  
   % Encode each frame in the block
+  box_count_from_block_frame_index = zeros(block_frame_count,1) ;
   for block_frame_index = 1 : block_frame_count ,
     % read in the current frame
     input_frame_index = block_input_offset + block_frame_index ;
@@ -224,21 +234,25 @@ for block_index = 1 : block_count ,
 
     % Plot all the pixels that are different enough to be considered foreground
     if verbose >= 3 ,
-      f = findall(groot(), 'Type', 'figure', 'Tag', 'is_different_enough_figure') ;
+      f = findall(groot(), 'Type', 'figure', 'Tag', 'is_foreground_figure') ;
       if isempty(f) ,
-        f = figure('Tag', 'is_different_enough_figure', 'Color', 'white') ;
+        f = figure('Tag', 'is_foreground_figure', 'Color', 'white') ;
+        set_figure_size_bang(f, [13 12]) ;
       end
-      ax = findall(f, 'Type', 'axes', 'Tag', 'is_different_enough_axes') ;
+      ax = findall(f, 'Type', 'axes', 'Tag', 'is_foreground_axes') ;
       if isempty(ax) ,
-        ax = axes('Parent', f, 'Tag', 'is_different_enough_axes', 'Title', 'is_different_enough') ;
+        ax = axes('Parent', f, 'Tag', 'is_foreground_axes', ...
+                  'YDir', 'reverse', 'DataAspectRatioMode', 'manual', 'Colormap', [0 0 0 ; 1 1 1]) ;
       end
       delete(ax.Children) ;
-      imshow(is_foreground', 'Parent', ax) ;  % Want to show normal, not transposed
-      drawnow('nocallbacks') ;
+      image(ax, 'CData', is_foreground, 'CDataMapping', 'direct') ;
+      axis(ax, 'equal') ;
+      axis(ax, 'tight') ;
+      title(ax, sprintf('is_foreground (input_frame_index=%d)', input_frame_index), 'Interpreter', 'none') ;
     end
 
     % Compute a set of boxes that cover all the foreground pixels
-    limits_from_box_index = find_boxes_from_image(is_foreground) ;
+    box_from_box_index = find_tidy_boxes_from_image(is_foreground) ;
       % limits_from_box_index is 3d.  Each page is a box, and each page looks like
       %   [ x_lo x_hi ;
       %     y_lo y_hi ]
@@ -246,21 +260,37 @@ for block_index = 1 : block_count ,
       % inclusive (both _lo and _hi are part of the box), and use Matlab-style
       % 1-based indexing.
 
+    % Add the boxes to the foreground image
+    if verbose >= 3 ,
+      ax = findall(groot(), 'Type', 'axes', 'Tag', 'is_foreground_axes') ;
+      box_count = size(box_from_box_index, 3) ;
+      for box_index = 1 : box_count ,
+        box = box_from_box_index(:,:,box_index) ;
+        limits_for_drawing = box + [-0.5 +0.5 ; -0.5 +0.5] ;
+        rectangle_x_from_vertex_index = ...
+          [limits_for_drawing(1,1) limits_for_drawing(1,2) limits_for_drawing(1,2) limits_for_drawing(1,1) limits_for_drawing(1,1) ] ;
+        rectangle_y_from_vertex_index = ...
+          [limits_for_drawing(2,1) limits_for_drawing(2,1) limits_for_drawing(2,2) limits_for_drawing(2,2) limits_for_drawing(2,1) ] ;
+        line(ax, 'XData', rectangle_x_from_vertex_index, 'YData', rectangle_y_from_vertex_index, 'Color', 'r') ;        
+      end      
+      drawnow('nocallbacks') ;
+    end
+
     % Convert the boxes and pixel values to the format ufmf_write_frame()
     % requires.
-    box_count = size(limits_from_box_index, 3) ;
+    box_count = size(box_from_box_index, 3) ;
     x0 = zeros(box_count, 1) ;
     y0 = zeros(box_count, 1) ;
     w = zeros(box_count, 1) ;
     h = zeros(box_count, 1) ;
     val = cell(box_count, 1) ;
     for box_index = 1 : box_count ,
-      limits = limits_from_box_index(:,:,box_index) ;
-      x0(box_index) = limits(1,1) - 1 ;  % -1 converts from 1-based indexing to 0-based
-      y0(box_index) = limits(2,1) - 1 ;
-      w(box_index) = limits(1,2) - limits(1,1) + 1 ;  % +1 b/c limits are inclusive on both ends
-      h(box_index) = limits(2,2) - limits(2,1) + 1 ;
-      box_image = frame(limits(2,1):limits(2,2), limits(1,1):limits(1,2)) ;
+      box = box_from_box_index(:,:,box_index) ;
+      x0(box_index) = box(1,1) - 1 ;  % -1 converts from 1-based indexing to 0-based
+      y0(box_index) = box(2,1) - 1 ;
+      w(box_index) = box(1,2) - box(1,1) + 1 ;  % +1 b/c limits are inclusive on both ends
+      h(box_index) = box(2,2) - box(2,1) + 1 ;
+      box_image = frame(box(2,1):box(2,2), box(1,1):box(1,2)) ;
       box_image_transposed = box_image' ;      
       val{box_index} = box_image_transposed(:) ;  % col vector
     end
@@ -280,8 +310,16 @@ for block_index = 1 : block_count ,
     % Record the frame timestamp
     timestamp_from_output_frame_index(output_frame_index) = timestamp ;
 
+    % Record the box count
+    box_count_from_block_frame_index(block_frame_index) = box_count ;
+
     % increment the stamp
     timestamp = timestamp + dt ;
+  end
+
+  if verbose >= 1,
+    mean_box_count = mean(box_count_from_block_frame_index) ;
+    fprintf('Done encoding frames for block %d.  Average box count per frame was %g\n', block_index, mean_box_count) ;
   end
 end
 
