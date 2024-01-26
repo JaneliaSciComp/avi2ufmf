@@ -4,7 +4,7 @@ This is a Matlab script to compress .avi video files to .ufmf files
 (the "micro fly movie format", see [the Ctrax
 website](https://ctrax.sourceforge.net/)).
 
-## Installation
+### Installation
 
 To install, extract all the files in the repo to a folder, say
 "/my/folder/avi2ufmf", and then do this in Matlab:
@@ -18,7 +18,7 @@ savepath()
 ```
 if you want the path changes to persist across Matlab restarts
 
-## Usage
+### Usage
 
 To compress a file in the current Matlab folder that is named
 `foo.avi`, do this:
@@ -108,7 +108,7 @@ We include the `showufmf()` function written by [Kristen
 Branson](https://www.janelia.org/people/kristin-branson) for
 inspecting the generated .ufmf files.
 
-## Credits
+### Credits
 
 This code is all based on code and technologies developed by the
 [Branson Lab](https://www.janelia.org/lab/branson-lab), and borrows a
