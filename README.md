@@ -116,9 +116,9 @@ lot of source code from the [FlyDiscoAnalysis
 repo](https://github.com/kristinbranson/FlyDiscoAnalysis/) and/or the
 [JAABA repo](https://github.com/kristinbranson/JAABA).
 
-This code was developed with funding from the (Aso
-Lab)[https://www.janelia.org/lab/aso-lab].
+This code was developed with funding from the [Aso
+Lab](https://www.janelia.org/lab/aso-lab).
 
-Adam L. Taylor\
+Adam L. Taylor
 2024-01-25
 
